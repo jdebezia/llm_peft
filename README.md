@@ -1,21 +1,9 @@
-# TP Text2SQL: Fine-tuning de LLM 
+# TP : PEFT on medical dataset
 
-## Configuration de l'environnement
-Ouvrez un terminal dans le JupyterLab puis exécutez la commande ci-dessous
-```
-source activate pytorch_p310 && cd SageMaker && sh env_configuration.sh 
-```
+## Objectif
+Dans cette [article](), je présente le concept du ***P**arameter **E**fficient **F**ine-**T**uning (**PEFT**)*. Ce repository comporte une mise en pratique sur des données médicales.
+
 ## Dataset
-Voici un aperçu du [dataset](https://huggingface.co/datasets/NumbersStation/NSText2SQL)
+Voici un aperçu du [dataset](https://huggingface.co/datasets/lavita/medical-qa-datasets)
 
-**ATTENTION**: Nous travaillons **uniquement** sur la base données **`atis`**
-
-## Étapes:
-1. Construisez votre dataset (`TP/01_process_datasets.ipynb`)
-2. Évaluez le modèle non entrainé sur le dataset de test (`TP/02_zero_shot_inference.ipynb`)
-3. Fine-tunez le modèle en utilisant les datasets de *train/validation* (libre à vous de les ajuster) (`TP/03_llm_peft.ipynb`)
-4. Évaluez le modèle fine-tuné sur le dataset de *test* (avec les fonctions fournies) (`TP/04_fine_tuned_inference.ipynb`)
-5. Générer les score d'évaluation (`TP/05_Evaluation.ipynb`)
-
-## Objectif:
-Avoir le meilleur score d'évalution donc n'hésitez pas à répéter les étapes **3.** & **4.** afin d'améliorer les performances.
+**ATTENTION**: Le TP se déroule **uniquement** sur les données **`chatdoctor_healthcaremagic`**

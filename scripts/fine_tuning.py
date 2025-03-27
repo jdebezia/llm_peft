@@ -26,7 +26,7 @@ def create_peft_model(model, peft_config, gradient_checkpointing=True, bf16=True
     # get lora target modules
     modules = find_all_linear_names(model)
     print(f"Found {len(modules)} modules to quantize: {modules}")
-    
+
     model = get_peft_model(model, peft_config)
 
     # pre-process the model by upcasting the layer norms in float 32 for

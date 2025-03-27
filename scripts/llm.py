@@ -12,7 +12,7 @@ class LargeLanguageModel(ABC):
         pass
 
 ## Qwen2 language model class based on languageModel port
-class LLM:
+class LLM(LargeLanguageModel):
     def __init__(self, model: AutoPeftModelForCausalLM, tokenizer: AutoTokenizer):
         self.model = model
         self.tokenizer = tokenizer
@@ -41,16 +41,16 @@ class LLM:
         return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0].split("SQLQuery:")[-1]
 
 ## prepare query with prompt
-def prepare_query(natural_query: str, path_to_prompt_template: str) -> str:
-    template = json.load(open(path_to_prompt_template, "r"))
-    prompt = f"{template['role']} \n --{template['context']}"
+def prepare_query(natural_query: str, template: str) -> str:
+    # template = json.load(open(path_to_prompt_template, "r"))
+    #prompt = f"{template['role']} \n" # --{template['context']}"
     messages = [
-        {"role": "system", "content": prompt},
+        {"role": "system", "content": template},
         {"role": "user", "content": natural_query}
     ]
     return messages
 
 
-## generate sql from natural query with given llm
-def generate_sql(natural_query: str, language_model: LargeLanguageModel) -> str:
+## generate answer from natural query with given llm
+def generate_answer(natural_query: str, language_model: LargeLanguageModel) -> str:
     return language_model.generate(natural_query)

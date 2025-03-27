@@ -71,16 +71,16 @@ def process_sql_dataset(dataset_name="NumbersStation/NSText2SQL", source_filter=
     return processed_dataset
 
 def split_dataset_by_size(
-    dataset: Dataset, 
-    train_size: Union[int, float] = 0.7, 
-    eval_size: Union[int, float] = 0.2, 
-    test_size: Union[int, float] = 0.1, 
+    dataset: Dataset,
+    train_size: Union[int, float] = 0.7,
+    eval_size: Union[int, float] = 0.2,
+    test_size: Union[int, float] = 0.1,
     train_seed: int = 42,
     eval_seed: int = 42
 ) -> Dict[str, Dataset]:
     """
     Split dataset deterministically into train, eval, and test sets with flexible sizing.
-    
+
     Args:
         dataset (Dataset): Processed dataset to split
         train_size (int or float): Number or proportion of samples for training
@@ -88,50 +88,50 @@ def split_dataset_by_size(
         test_size (int or float): Number or proportion of samples for testing
         train_seed (int): Seed for selecting the fixed train dataset
         eval_seed (int): Seed for selecting eval and test datasets
-    
+
     Returns:
         Dict containing train, eval, and test datasets
     """
     # Total dataset size
     total_size = len(dataset)
-    
+
     # Convert proportional sizes to actual numbers if needed
     def convert_to_size(size_param, total):
         if isinstance(size_param, float):
             return int(total * size_param)
         return size_param
-    
+
     train_size = convert_to_size(train_size, total_size)
     eval_size = convert_to_size(eval_size, total_size)
     test_size = convert_to_size(test_size, total_size)
-    
+
     # Validate sizes
     if train_size + eval_size + test_size > total_size:
         raise ValueError(f"Combined sizes ({train_size + eval_size + test_size}) exceed total dataset size ({total_size})")
-    
+
     # Shuffle the entire dataset for consistent splitting
     shuffled_dataset = dataset.shuffle(seed=train_seed)
-    
+
     # Select train dataset
     train_dataset = shuffled_dataset.select(range(train_size))
-    
+
     # Select remaining dataset (excluding train)
     remaining_dataset = shuffled_dataset.select(range(train_size, total_size))
-    
+
     # Shuffle remaining dataset with eval seed
     remaining_dataset = remaining_dataset.shuffle(seed=eval_seed)
-    
+
     # Select eval and test datasets from remaining
     eval_dataset = remaining_dataset.select(range(eval_size))
     test_dataset = remaining_dataset.select(range(eval_size, eval_size + test_size))
-    
+
     # Print split information
     print(f"Dataset Split Information:")
     print(f"Total samples: {total_size}")
     print(f"Train samples: {len(train_dataset)} ({train_size})")
     print(f"Eval samples: {len(eval_dataset)} ({eval_size})")
     print(f"Test samples: {len(test_dataset)} ({test_size})")
-    
+
     return {
         "dataset": shuffled_dataset,
         "train": train_dataset,
@@ -142,27 +142,27 @@ def split_dataset_by_size(
 def format_dolly(sample):
     """
     Format sample in Dolly-style prompt template
-    
+
     Args:
-        sample (dict): Dataset sample with instruction, context, and output
-    
+        sample (dict): Dataset sample with instruction, input, and output
+
     Returns:
         str: Formatted prompt
     """
     instruction = f"### Instruction\n{sample['instruction']}"
-    context = f"### Context\n{sample['context']}" if len(sample["context"]) > 0 else None
+    input = f"### Input\n{sample['input']}" if len(sample["input"]) > 0 else None
     response = f"### Answer\n{sample['output']}"
     # join all the parts together
-    prompt = "\n\n".join([i for i in [instruction, context, response] if i is not None])
+    prompt = "\n\n".join([i for i in [instruction, input, response] if i is not None])
     return prompt
 
 def template_dataset(sample):
     """
     Add formatted text to dataset sample
-    
+
     Args:
         sample (dict): Dataset sample
-    
+
     Returns:
         dict: Sample with added text field
     """
@@ -172,128 +172,63 @@ def template_dataset(sample):
 def chunk(sample, chunk_length=2048):
     """
     Chunk tokenized dataset into fixed-length sequences
-    
+
     Args:
         sample (dict): Tokenized dataset sample
         chunk_length (int): Length of chunks to create
-    
+
     Returns:
         dict: Chunked dataset sample
     """
     # Define global remainder variable to save remainder from batches to use in next batch
     global remainder
-    
+
     # Concatenate all texts and add remainder from previous batch
     concatenated_examples = {k: list(chain(*sample[k])) for k in sample.keys()}
     concatenated_examples = {k: remainder[k] + concatenated_examples[k] for k in concatenated_examples.keys()}
-    
+
     # Get total number of tokens for batch
     batch_total_length = len(concatenated_examples[list(sample.keys())[0]])
- 
+
     # Get max number of chunks for batch
     if batch_total_length >= chunk_length:
         batch_chunk_length = (batch_total_length // chunk_length) * chunk_length
- 
+
     # Split by chunks of max_len
     result = {
         k: [t[i : i + chunk_length] for i in range(0, batch_chunk_length, chunk_length)]
         for k, t in concatenated_examples.items()
     }
-    
+
     # Add remainder to global variable for next batch
     remainder = {k: concatenated_examples[k][batch_chunk_length:] for k in concatenated_examples.keys()}
-    
+
     # Prepare labels
     result["labels"] = result["input_ids"].copy()
     return result
 
-def prepare_datasets(
-    sagemaker_session_bucket=None, 
-    train_size: Union[int, float] = 0.7, 
-    eval_size: Union[int, float] = 0.2, 
-    test_size: Union[int, float] = 0.1,
-    train_seed: int = 42,
-    eval_seed: int = 123,
-    chunk_length: int = 2048
-):
-    """
-    Prepare and process datasets for training
-    
-    Args:
-        sagemaker_session_bucket (str, optional): S3 bucket for saving processed datasets
-        train_size (int or float): Number or proportion of samples for training
-        eval_size (int or float): Number or proportion of samples for evaluation
-        test_size (int or float): Number or proportion of samples for testing
-        train_seed (int): Seed for selecting the fixed train dataset
-        eval_seed (int): Seed for selecting eval and test datasets
-        chunk_length (int): Length of chunks to create during tokenization
-    
-    Returns:
-        dict: Dictionary containing processed train, eval, and test datasets
-    """
-    # Process the raw dataset
-    processed_dataset = process_sql_dataset()
-    
-    # Split the dataset
-    dataset_splits = split_dataset_by_size(
-        processed_dataset, 
-        train_size=train_size, 
-        eval_size=eval_size, 
-        test_size=test_size,
-        train_seed=train_seed,
-        eval_seed=eval_seed
-    )
-    
-    # Extract train, eval, and test datasets
-    train_dataset = dataset_splits["train"]
-    eval_dataset = dataset_splits["eval"]
-    test_dataset = dataset_splits["test"]
-    
-    # Initialize remainder dictionary for chunking
-    global remainder
-    remainder = {"input_ids": [], "attention_mask": [], "token_type_ids": []}
-    
-    # Prepare train dataset
-    # Apply prompt template per sample
-    train_dataset = train_dataset.map(template_dataset, remove_columns=list(train_dataset.features))
-    
-    # Tokenize and chunk train dataset
-    lm_dataset = train_dataset.map(
-        lambda sample: tokenizer(sample["text"]), batched=True, remove_columns=list(train_dataset.features)
-    ).map(
-        partial(chunk, chunk_length=chunk_length),
-        batched=True,
-    )
-    
-    # Reset remainder for eval dataset
-    remainder = {"input_ids": [], "attention_mask": [], "token_type_ids": []}
-    
-    # Prepare eval dataset
-    eval_dataset = eval_dataset.map(template_dataset, remove_columns=list(eval_dataset.features))
-    
-    # Tokenize and chunk eval dataset
-    lm_dataset_eval = eval_dataset.map(
-        lambda sample: tokenizer(sample["text"]), batched=True, remove_columns=list(eval_dataset.features)
-    ).map(
-        partial(chunk, chunk_length=chunk_length),
-        batched=True,
-    )
-    
-    # Print total number of samples
-    print(f"Total train samples: {len(lm_dataset)}")
-    print(f"Total eval samples: {len(lm_dataset_eval)}")
-    
-    # Optionally save datasets to S3 (if SageMaker bucket is provided)
-    if sagemaker_session_bucket:
-        lm_dataset.save_to_disk(f's3://{sagemaker_session_bucket}/text_2_sql/dataset/train')
-        lm_dataset_eval.save_to_disk(f's3://{sagemaker_session_bucket}/text_2_sql/dataset/valid')
-        test_dataset.save_to_disk(f's3://{sagemaker_session_bucket}/text_2_sql/dataset/test')
-    
-    return {
-        "train_tokenized": lm_dataset,
-        "eval_tokenized": lm_dataset_eval,
-        "original_splits": dataset_splits
-    }
+def process_dataset(dataset: Dataset, chunk_length: int = 2048) -> Dataset:
+  # Initialize remainder dictionary for chunking
+  global remainder
+  remainder = {"input_ids": [], "attention_mask": [], "token_type_ids": []}
+
+  # Prepare train dataset
+  # Apply prompt template per sample
+  dataset = dataset.map(template_dataset, remove_columns=list(dataset.features))
+
+  # Tokenize and chunk train dataset
+  lm_dataset = dataset.map(
+      lambda sample: tokenizer(sample["text"]), batched=True, remove_columns=list(dataset.features)
+  ).map(
+      partial(chunk, chunk_length=chunk_length),
+      batched=True,
+  )
+
+  # Print total number of samples
+  print(f"Total train samples: {len(lm_dataset)}")
+
+  return lm_dataset
+
 def save_to_csv(dataset, filename):
     """
     Save dataset to a CSV file.
